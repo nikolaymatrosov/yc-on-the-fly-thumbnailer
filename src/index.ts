@@ -74,7 +74,7 @@ export async function handler(event: YC.CloudFunctionsHttpEvent) {
 
     const result = s3.upload({
             Bucket: BUCKET,
-            Key: key,
+            Key: [PREFIX, key].join('/'),
             Body: pass,
             ContentType: contentType
         }
