@@ -4,12 +4,14 @@ import * as stream from 'stream';
 import {YC} from "./yc";
 
 const re = RegExp('(\.jpg|\.png)$', 'i');
-const MIN_WIDTH = 100;
-const MIN_HEIGHT = 100;
-const MAX_WIDTH = 1000;
-const MAX_HEIGHT = 1000;
+const ALLOWED_DIMENSIONS = new Set();
 
 const {AWS_ACCESS_KEY, AWS_SECRET_KEY, BUCKET, PREFIX} = process.env;
+
+if (process.env.ALLOWED_DIMENSIONS) {
+    const dimensions = process.env.ALLOWED_DIMENSIONS.split(/\s*,\s*/);
+    dimensions.forEach((dimension) => ALLOWED_DIMENSIONS.add(dimension));
+}
 
 const s3Config: S3.Types.ClientConfiguration = {
     apiVersion: '2006-03-01',
@@ -22,23 +24,28 @@ const s3Config: S3.Types.ClientConfiguration = {
 };
 const s3 = new S3(s3Config);
 
-function ensureValueInRange(val: number, min: number, max: number): number {
-    return Math.min(Math.max(val, min), max);
-}
 
 export async function handler(event: YC.CloudFunctionsHttpEvent) {
 
-    const [dimensions, ...path] = event.queryStringParameters['path'].split('/')
-    const [sWidth, sHeight] = dimensions.split("x")
-    const object_id = path[path.length - 1];
-    if (object_id.match(re) === null) {
+    const key = event.queryStringParameters.path;
+    const match = key.match(/((\d+)x(\d+))\/(.*)/);
+    const dimensions = match[1];
+    const width = parseInt(match[2], 10);
+    const height = parseInt(match[3], 10);
+    const originalKey = match[4];
+
+    if (ALLOWED_DIMENSIONS.size > 0 && !ALLOWED_DIMENSIONS.has(dimensions)) {
+        return {
+            statusCode: 403,
+            headers: {},
+            body: '',
+        };
+    }
+    if (originalKey.match(re) === null) {
         return;
     }
-    const width = ensureValueInRange(parseInt(sWidth, 10), MIN_WIDTH, MAX_WIDTH);
-    const height = ensureValueInRange(parseInt(sHeight, 10), MIN_HEIGHT, MAX_HEIGHT);
 
-
-    const [ext,] = object_id.split(".").reverse()
+    const [ext,] = originalKey.split(".").reverse()
     // As I pass through only 2 file extensions I can simply define content type as follows
     const contentType = ext.toLowerCase() == "png" ? "image/png" : "image/jpg"
 
@@ -50,7 +57,7 @@ export async function handler(event: YC.CloudFunctionsHttpEvent) {
 
     const s3GetObjectStream = s3.getObject({
         Bucket: BUCKET,
-        Key: [PREFIX, ...path].join('/')
+        Key: [PREFIX, originalKey].join('/'),
     }).createReadStream();
 
     const pass = new stream.PassThrough();
@@ -67,7 +74,7 @@ export async function handler(event: YC.CloudFunctionsHttpEvent) {
 
     const result = s3.upload({
             Bucket: BUCKET,
-            Key: [PREFIX, dimensions, ...path].join('/'),
+            Key: key,
             Body: pass,
             ContentType: contentType
         }

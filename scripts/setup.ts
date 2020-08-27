@@ -39,6 +39,6 @@ s3.putBucketWebsite({
         const w = s3.getBucketWebsite({
             Bucket: BUCKET,
         });
-        w.promise().then(res => console.log(JSON.stringify(res)))
+        w.promise().then(res => console.log('website:', JSON.stringify(res)));
     })
     .catch(err => console.log(err))
