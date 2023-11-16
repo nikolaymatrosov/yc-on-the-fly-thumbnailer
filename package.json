@@ -6,7 +6,7 @@
   },
   "dependencies": {
     "aws-sdk": "2.714.2",
-    "sharp": "0.25.4"
+    "sharp": "0.32.6"
   },
   "devDependencies": {
     "@types/chai": "^4.2.11",
